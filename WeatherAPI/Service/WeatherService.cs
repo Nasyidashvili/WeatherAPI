@@ -1,7 +1,6 @@
 ﻿using WeatherAPI.Interface;
 using WeatherAPI.DTO;
-using WeatherAPI.Model;
-using System.Net.Http.Json;
+using WeatherAPI.Model;  
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 
@@ -12,22 +11,30 @@ namespace WeatherAPI.Service
         private readonly HttpClient _httpClient;
         private readonly string? baseUrl;
         private readonly string? apiKey;
-        private readonly IOptions<WeatherApiSettings> _options;
+        private readonly ICacheService _cache;
 
-        public WeatherService(HttpClient httpClient, IOptions<WeatherApiSettings> options)
+        public WeatherService(HttpClient httpClient, IOptions<WeatherApiSettings> options, ICacheService cache)
         {
             _httpClient = httpClient;
-            _options = options;
             baseUrl = options.Value.BaseUrl;
             apiKey = options.Value.ApiKey;
             _httpClient.BaseAddress = new Uri(baseUrl);
-        }
+            _cache = cache;
+        }   
 
         public async Task<WeatherDto> GetWeatherByLocation(string? location)
         {
+            string cacheKey = $"weather:{location?.ToLower()}";
+
+            var cached = await _cache.GetAsync<WeatherDto>(cacheKey);
+            if (cached != null)
+            {
+                return cached;
+            }
+
             try
             {
-                var response = await _httpClient.GetAsync($"{location}/{DateTime.Now.ToString("yyyy-MM-dd")}?unitGroup=us&include=days&key={apiKey}&contentType=json");
+                var response = await _httpClient.GetAsync($"{location}/{DateTime.Now.ToString("yyyy-MM-dd")}?unitGroup=metric&include=days&key={apiKey}&contentType=json");
                 response.EnsureSuccessStatusCode();
 
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
@@ -45,6 +52,8 @@ namespace WeatherAPI.Service
                     TemperatureC = today.Temp,
                     Humidity = today.Humidity
                 };
+
+                await _cache.SetAsync(cacheKey, weatherData, TimeSpan.FromMinutes(30));
 
                 return weatherData;
             }
