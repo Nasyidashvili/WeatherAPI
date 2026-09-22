@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using WeatherAPI.DTO;
+using WeatherAPI.Interface;
 
 namespace WeatherAPI.Controllers
 {
@@ -7,15 +9,24 @@ namespace WeatherAPI.Controllers
     [ApiController]
     public class WeatherController : ControllerBase
     {
-        [HttpGet("{cityNode}")]
-        public IActionResult GetWeather(string cityNode)
+        private readonly IWeatherService _weatherService;
+
+        public WeatherController(IWeatherService weatherService)
         {
-            return Ok( new
+            _weatherService = weatherService;
+        }
+
+        [HttpGet("{location}")]
+        public async Task<ActionResult<WeatherDto>> GetWeather(string? location)
+        {
+            if (string.IsNullOrWhiteSpace(location))
             {
-                temperatureC = 25,
-                Description = "Sunny",
-                city = cityNode
-            });
+                return BadRequest("City/location is required.");
+            }
+                
+
+            var weather = await _weatherService.GetWeatherByLocation(location);
+            return Ok(weather);
         }
     }
 }
